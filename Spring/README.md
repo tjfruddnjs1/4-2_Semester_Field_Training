@@ -126,12 +126,12 @@ public class ExampleImpl extends QuerydslRepositorySupport implements
   };
 
   @Override
-  public GraphCarbonStatusDTO findHistory(Integer Id, LocalDate startDate, LocalDate endDate){
+  public DTO findHistory(Integer Id, LocalDate startDate, LocalDate endDate){
       return //구현한 query 내용
   };
 
   @Override
-  public Map<LocalDate, GraphCarbonStatusDTO> findStatusByDateList(List<LocalDate> dateList,
+  public Map<LocalDate, DTO> findStatusByDateList(List<LocalDate> dateList,
       Integer Id){
           return //구현한 query 내용
       };
