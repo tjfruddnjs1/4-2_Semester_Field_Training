@@ -98,12 +98,12 @@ spring:
 ```java
 @NoRepositoryBean
 public interface CustomExampleRepository {
-  CowDayProductionDTO findCowDayProduction(Integer farmId);
+  DTO findDayProduction(Integer Id);
 
-  GraphCarbonStatusDTO findHistoryByDateRange(Integer farmId, LocalDate startDate, LocalDate endDate);
+  DTO findHistoryByDateRange(Integer Id, LocalDate startDate, LocalDate endDate);
 
-  Map<LocalDate, GraphCarbonStatusDTO> findCarbonStatusByDateListAndFarm(List<LocalDate> dateList,
-      Integer farmId);
+  Map<LocalDate, DTO> findStatusByDateList(List<LocalDate> dateList,
+      Integer Id);
 }
 ```
 
@@ -114,25 +114,25 @@ public interface CustomExampleRepository {
 public class ExampleImpl extends QuerydslRepositorySupport implements
     CustomExampleRepository {
 
-  QAllCowInfo allCowInfo = QAllCowInfo.allCowInfo;
+  QAllInfo allInfo = QAllInfo.allInfo;
 
-  public AllCowInfoRepositoryImpl() {
-    super(AllCowInfo.class);
+  public AllInfoRepositoryImpl() {
+    super(AllInfo.class);
   }
 
   @Override
-  public CowDayProductionDTO findCowDayProduction(Integer farmId){
+  public DTO findList(Integer Id){
       return //구현한 query 내용
   };
 
   @Override
-  public GraphCarbonStatusDTO findHistoryByDateRange(Integer farmId, LocalDate startDate, LocalDate endDate){
+  public GraphCarbonStatusDTO findHistory(Integer Id, LocalDate startDate, LocalDate endDate){
       return //구현한 query 내용
   };
 
   @Override
-  public Map<LocalDate, GraphCarbonStatusDTO> findCarbonStatusByDateListAndFarm(List<LocalDate> dateList,
-      Integer farmId){
+  public Map<LocalDate, GraphCarbonStatusDTO> findStatusByDateList(List<LocalDate> dateList,
+      Integer Id){
           return //구현한 query 내용
       };
 }
@@ -143,8 +143,8 @@ public class ExampleImpl extends QuerydslRepositorySupport implements
 
 ```java
 @Repository
-public interface ExampleRepository extends JpaRepository<AllCowInfo, AllCowInfoId>,
-    CustomAllCowInfoRepository {
+public interface ExampleRepository extends JpaRepository<AllInfo, AllCowInfoId>,
+    CustomAllInfoRepository {
 
 }
 ```
@@ -162,48 +162,48 @@ public interface ExampleRepository extends JpaRepository<AllCowInfo, AllCowInfoI
 
 - 이에 해당하는 학습 내용 및 쿼리를 프로그래밍 언어처럼 조건을 사용할 수 있는 PL/SQL에 관련한 학습 내용은 `하위 폴더로 따로 만들어 정리한 내용을 분류`하고 아래에는 실제 적용한 내용을 설명하겠습니다.
 
-- 처음 문제를 마주한곳은 소에 대한 활동 정보가 매일매일 cow_activity 테이블에 누적되고 여러 종류의 date를 가진 소id로 부터 누적량 또는 최신 데이터를 가져와야 하는 상황이 필요하여 해당 부분을 테이블에 insert시 trigger시 조건을 판단하여 업데이트 하는 방식을 사용하였습니다.
+- 처음 문제를 마주한곳은 활동 정보가 매일매일 activity 테이블에 누적되고 여러 종류의 date를 가진 id로 부터 누적량 또는 최신 데이터를 가져와야 하는 상황이 필요하여 해당 부분을 테이블에 insert시 trigger시 조건을 판단하여 업데이트 하는 방식을 사용하였습니다.
 
-> 최신 소 데이터를 가져오는 trigger
+> 최신 데이터를 가져오는 trigger
 
 ```sql
-CREATE TRIGGER `latest_cow_activity` AFTER INSERT ON `cow_activity` FOR EACH ROW BEGIN
+CREATE TRIGGER `latest_activity` AFTER INSERT ON `activity` FOR EACH ROW BEGIN
     DECLARE latest TINYINT(1);
 
     SELECT EXISTS (
-        SELECT * FROM `cow_activity` WHERE `cow_id` = NEW.cow_id AND `farm_id` = NEW.farm_id AND `type` = NEW.type AND `activity_date` > NEW.activity_date
+        SELECT * FROM `activity` WHERE `a_id` = NEW.a_id AND `b_id` = NEW.b_id AND `type` = NEW.type AND `activity_date` > NEW.activity_date
     ) INTO `latest`;
 
     IF `latest` = 0 THEN
-        INSERT INTO `latest_cow_activity`(`cow_id`, `farm_id`, `activity_date`, `type`, `value`)
-	    VALUES(NEW.cow_id, NEW.farm_id, NEW.activity_date, NEW.type, NEW.value) ON DUPLICATE KEY UPDATE `activity_date` = NEW.activity_date, `value` = NEW.value;
+        INSERT INTO `latest_activity`(`a_id`, `b_id`, `activity_date`, `type`, `value`)
+	    VALUES(NEW.a_id, NEW.b_id, NEW.activity_date, NEW.type, NEW.value) ON DUPLICATE KEY UPDATE `activity_date` = NEW.activity_date, `value` = NEW.value;
     END IF;
 END^;
 ```
 
-> 일별 소 데이터를 가져오는 trigger
+> 일별 데이터를 가져오는 trigger
 
 ```sql
-CREATE TRIGGER `daily_production` AFTER INSERT ON `cow_activity` FOR EACH ROW BEGIN
+CREATE TRIGGER `daily_production` AFTER INSERT ON `activity` FOR EACH ROW BEGIN
     DECLARE isExists TINYINT(1);
-    DECLARE cow_sum  INTEGER;
+    DECLARE a_id_sum  INTEGER;
 
     SELECT EXISTS (
       SELECT * FROM `daily_production`
-      WHERE `product_year` = DATE_FORMAT(NEW.activity_date , "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date , "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date , "%d") AND `farm_id` = NEW.farm_id
+      WHERE `product_year` = DATE_FORMAT(NEW.activity_date , "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date , "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date , "%d") AND `b_id` = NEW.b_id
    ) INTO `isExists`;
 
    IF `isExists` = 0 THEN
-      INSERT INTO `daily_production`(`farm_id`, `product_year`, `product_month`, `product_day` , `total_value`,`cow_count`)
+      INSERT INTO `daily_production`(`b_id`, `product_year`, `product_month`, `product_day` , `total_value`,`a_id_sum`)
       VALUES(NEW.farm_id, DATE_FORMAT(NEW.activity_date , "%Y"), DATE_FORMAT(NEW.activity_date , "%m"), DATE_FORMAT(NEW.activity_date , "%d"), NEW.value, 1);
    ELSE
-    SELECT `cow_count`
-    INTO `cow_sum`
+    SELECT `a_count`
+    INTO `a_sum`
     FROM `daily_production`
-    WHERE `product_year` = DATE_FORMAT(NEW.activity_date, "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date, "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date, "%d") AND `farm_id` = NEW.farm_id;
+    WHERE `product_year` = DATE_FORMAT(NEW.activity_date, "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date, "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date, "%d") AND `b_id` = NEW.b_id;
 
-    UPDATE `daily_production` SET `total_value` = `total_value` + NEW.value, `cow_count` = `cow_sum` + 1
-    WHERE `product_year` = DATE_FORMAT(NEW.activity_date , "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date , "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date , "%d") AND `farm_id` = NEW.farm_id;
+    UPDATE `daily_production` SET `total_value` = `total_value` + NEW.value, `a_count` = `a_sum` + 1
+    WHERE `product_year` = DATE_FORMAT(NEW.activity_date , "%Y") AND `product_month` = DATE_FORMAT(NEW.activity_date , "%m") AND `product_day` = DATE_FORMAT(NEW.activity_date , "%d") AND `b_id` = NEW.b_id;
    END IF;
 ```
 
@@ -275,7 +275,7 @@ it’s populated via data.sql.
 - https://stackoverflow.com/questions/2411559/how-do-i-query-sql-for-a-latest-record-date-for-each-user
 - 해당 구현 쿼리는 위의 링크로부터 같은 테이블을 join하여 sql로 구현하고 이를 querydsl 공식 doc을 참조하여 구현하였습니다.
 
-> 구현 쿼리 예시 2) date(월, 주, 일)를 그룹화하고 오름차순으로 정렬된 필요 컬럼들의 합, 평균을 return 하는 쿼리 > (내 농장 id vs 타 농장 id) data 구분 가능
+> 구현 쿼리 예시 2) date(월, 주, 일)를 그룹화하고 오름차순으로 정렬된 필요 컬럼들의 합, 평균을 return 하는 쿼리 > (내 id vs 타 id) data 구분 가능
 
 - 이는 Month, Week, Day를 필요 부분에 출력하기 위해 viewType이라는 `custom enum class`를 생성하고 path 경로를 받아올 수 있는 `NumberPath` 타입을 사용하여 동적으로 받아온 type에 따라 동적으로 가져올 수 있게 작성되었습니다.
 - 또한 아래에 excludeMyId 의 boolean type의 변수를 통해 내 id가 아닌 정보를 불러올 수도 있는데 이는 해당 method가 특수한 경우에서만 사용할 수 있도록 제한`(특수성)`하게 되어 `코드 리뷰`를 통해 `(범용성)`있게 이후 변경될 예정입니다.
@@ -289,10 +289,10 @@ it’s populated via data.sql.
     BooleanBuilder builder = new BooleanBuilder();
     LocalDate now = LocalDate.now();
 
-    if (excludeMyFarmId) {
-      builder.and(allInfo.id.eq(farmId));   //equal
+    if (excludeMyId) {
+      builder.and(allInfo.id.eq(Id));   //equal
     } else {
-      builder.and(allInfo.id.ne(farmId));   //not Equal
+      builder.and(allInfo.id.ne(Id));   //not Equal
     }
 
     NumberPath<Integer> group = null;
