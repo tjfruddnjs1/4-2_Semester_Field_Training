@@ -9,8 +9,7 @@
 
 ## 예시
 
-<img src="https://user-images.githubusercontent.com/
-41010744/132785227-13850d95-429f-4f5b-8241-279d265dd49e.png">
+<img src="https://user-images.githubusercontent.com/41010744/132785227-13850d95-429f-4f5b-8241-279d265dd49e.png">
 
 - table a : 사물의 이름 저장
 - table b : 무게를 저장
