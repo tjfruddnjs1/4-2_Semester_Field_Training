@@ -100,3 +100,141 @@
 > 구현 결과
 
 - <img src="https://user-images.githubusercontent.com/41010744/132128721-473be9d6-a17f-4316-9f4b-335cfec139c1.png">
+
+## 8주차 : 기능 개선 1 (요구사항 반영 & 오류 처리)
+
+1. '채팅방 > 공개채팅방' 채팅방 목록을 처음 확인하고, 작업을 하다 다시 공개 채팅방 쪽으로 가면 적용했던 무한 스크롤이 적용되지 않는 모습이 존재 (채팅방 리스트의 마지막 데이터까지 확인한 경우)
+
+### [기존 구현 시나리오]
+
+> 무한 스크롤 기능은 firebase를 호출하는 api/chat.jsx 에서 fetchChatList라는 함수에서 아래와 같이 채팅방 리스트를 불러옴
+
+```jsx
+await db
+  .ref("roomData")
+  .child("public")
+  .orderByKey()
+  .startAfter(lastKey)
+  .limitToFirst(20)
+  .get()
+  .then((snapshot) => {
+    const chat = snapshot.val();
+    for (let id in chat) {
+      publicChatList.push({ ...chat[id], id });
+    }
+  });
+```
+
+2. 20개의 limit 수를 걸어놓고 만일 이를 넘어가는 데이터가 존재하면 fetchChatMoreList 라는 함수에서 위와 같이 20개의 데이터를 가져오되 데이터가 그 이상으로 존재하는지를 판별할 수 있는 boolean type의 flag를 사용
+
+3. 위 flag 역할을 하는 key는 redux 부분의 reducer에서 hasMore이라는 boolean 값의 형태로 존재하고 이는 firebase에서 실시간으로 체크하는 구조
+
+### [변경 사항]
+
+- 채팅방 리스트를 reload하는 과정에서 해당 hasMore와 lastKey의 state를 초기화 해주지 않아 reload하게 되면 위 변수들의 state가 기존 state를 유지하게 되어 state를 초기화
+
+- 또한 위 fetchChatList 함수의 startAfter 함수의 parameter인 lastkey를 초기화 해주지 않았을 때 null값이나 firebase에 저장된 채팅방 수를 넘어가는 문제가 생겨 에러가 발생할 수 있는 상황이 존재하므로 해당 데이터를 불러올 때는 초기화 필요
+
+> 채팅방 가장 하단에 있는 채팅방에 `(+)` 버튼 클릭시 통계, 방정보 수정, 채팅 관리 버튼이 잘려서 이용이 힘듬
+
+<img src="https://user-images.githubusercontent.com/41010744/142528719-ce7f158d-423d-45cf-a608-6d79102f1379.png">
+
+### [기존 구현 시나리오]
+
+- reactStrap에서의 Dropdown, DropdownMenu와 react-data-table의 DataTable을 사용하였는데 table cell에 버튼과 dropdown 컴포넌트 요소를 넣어주었습니다.
+
+### [변경 사항]
+
+1. 처음 시도한 방법은 cell내의 dropdown 컴포넌트 요소의 z-index를 가장 높은 우선순위로 지정하는 방법으로 해결하려 했습니다. 하지만 해당 방법으로 해결시에 테이블 컴포넌트를 dropdown이 벗어나게 되어 디자인 적으로 나쁘고 z-index로 해결하는 방법은 지양하라는 요청을 받았습니다.
+
+2. 따라서, reactstrap의 공식문서로 들어와 dropdown 컴포넌트의 사용 가능한 요소들을 확인하다가 `UncontrolledDropdown` 를 발견했습니다.
+
+<img src="https://user-images.githubusercontent.com/41010744/142535161-5677e76e-90af-4d71-8937-95b94c0baa9c.png">
+
+3. 위 요소를 사용하여 기존 div의 스타일로 관리하던 모양과 테이블내에서 컨트롤되지 않던 dropdown 요소를 알아서 적당한 크기와 적당한 layout 배치를 자동으로 컨트롤 할 수 있게 되었습니다.
+
+- table cell에 uncontrolleredDropdown 요소로 변경한 모습 : 아래 요소일 경우 자동으로 위에 dropdown 생성
+
+<img src="https://user-images.githubusercontent.com/41010744/142538817-e35e42cd-9fd0-484e-9af3-b4b2601944e0.png">
+
+```jsx
+    {
+      name: "더보기",
+      center: true,
+      cell: (row) => (
+        <div>
+          <CardBody className="dropdown-basic">
+            <UncontrolledDropdown>
+              <DropdownToggle color="primary">
+                <i className="icofont icofont-plus"></i>
+              </DropdownToggle>
+              <DropdownMenu>
+                <DropdownItem
+                  onClick={() =>
+                    props.history.push(
+                      `${process.env.PUBLIC_URL}/chat/public/statistic/${row.id}`
+                    )
+                  }
+                >
+                  통계
+                </DropdownItem>
+                <DropdownItem
+                  onClick={() =>
+                    props.history.push(
+                      `${process.env.PUBLIC_URL}/chat/public/info/${row.id}`
+                    )
+                  }
+                >
+                  방정보 수정
+                </DropdownItem>
+                <DropdownItem
+                  onClick={() =>
+                    props.history.push(
+                      `${process.env.PUBLIC_URL}/chat/public/edit/${row.id}`
+                    )
+                  }
+                >
+                  채팅 관리
+                </DropdownItem>
+              </DropdownMenu>
+            </UncontrolledDropdown>
+          </CardBody>
+        </div>
+      ),
+    },
+```
+
+## 9주차 : 기능 개선 2 (요구사항 반영 & 오류 처리)
+
+> 채팅방 사용량 로그를 확인할 수 있게 지도 상 채팅방 circle 내 색깔로 사용량 확인 (빨강 : 활발, 파랑 : 보통, 초록 : 미비, 회색 : 사용량 없음)
+
+- 이후 사용량이 활발한지 보통인지 에 대한 기준은 주어질 예정이고 현재는 최근 채팅 데이터의 수를 임시적 기준을 정해 해당 기능을 구현했습니다.
+
+### [기존 구현 시나리오]
+
+1. 채팅방의 필요 정보(채팅방 반경, 위/경도, 채팅방 명, 채팅방 index)를 firebase(api/chat.jsx)로부터 불러와 contents를 NaverMap의 Marker와 Circle에 뿌리는 형태
+
+### [추가 사항]
+
+1. 채팅방 정보를 불러오는 fetchAllPublicChatApi 함수 내에 user수와 chat message 수를 firebase에서 불러오는 코드 추가
+
+2. 임시 기준으로 사용자 5명 이상에 채팅 메시지 수 20건 이상이면 활발(red), 3명부터 5명 미만일 경우 보통(blue), 1명부터 3명 미만일 경우 미비(green), 없는 경우 없음(gray)로 지정하여 object에 해당 요소를 추가
+
+3. 실제 api를 호출하는 chat/public/map.jsx 내 props 의 item 형태로 넘어오는 데이터로부터 Circle 내 fillColor 요소에 item의 color를 주며 기능 구현
+
+<img src="https://user-images.githubusercontent.com/41010744/142551764-ec7a99ad-2d46-4e73-ab7d-7df80783d5fe.png">
+
+> 채팅방 생성시 존재하는 위, 경도 일 경우 입력시 오류 발생
+> 지도에서 채팅방 생성 후 위도와 경도 값이 구글 지도상의 위, 경도와 맞지 않는 듯함 
+
+### [기존 구현 시나리오]
+
+1. 채팅방을 생성하는 public/chat/create.jsx 내 파일 내에서 post 요청을 보내는 form 태그 내에 위/경도 필드의 소수점 아래 허용자리수가 5자리로 지정
+2. 네이버 지도 내 좌표상의 위/경도는 소수점 아래 8자리까지 허용되어 input내 step(소수점 아래 자리수)을 잘못 지정
+
+### [개선 사항 & 추가 사항]
+
+1. 1차적으로 input field에 step size를 소수점 아래 8자리 까지 
+2. 생성 버튼에 handleSubmit을 통해 form 정보를 validation 할 수 있는 React Hook Form의 userForm을 통해 validation을 할 수 있도록 함  
+
+
