@@ -349,6 +349,56 @@ it’s populated via data.sql.
 - 또한, 프로젝트를 맡긴 업체 측에서도 database 데이터 구조상의 변경 (ex. 새로운 컬럼 추가, localdate → year , month , day 컬럼으로 변경)이 있었기 때문에 기존의 querydsl을 통해 작성되었던 쿼리문의 변경이 있었습니다.
 - 또한 기본키나 외래키가 아닌 컬럼 중 검색이 많이 일어나는 컬럼들은 index를 통해 검색 성능 향상을 시켜주도록 바뀌었습니다.
 
+> JPA Indexing 설정 방법
 
+```java
+@Table(indexes = {@Index(columnList="mycol1"), @Index(columnList="mycol2")})
+```
 
+- JPA domain에서 연관이 있는 필드를 나타날때 `@Embedded`라는 어노테이션을 사용해 의미를 가지는 객체(하나의 객체처럼 표현)로 표현하여 더 가독성이 좋은 코드로 만들어져 있었습니다.
 
+```java
+  @Embedded
+  private InfoDetail present;
+
+  @Embedded
+  private InfoDetail suggest;
+```
+
+> 맡게된 페이지 시나리오 & 각 시나리오 구현 사항
+
+- database 내의 logged user farm id 내의 전체 소 마리수를 가져와 사용자가 input 탭의 소 마리수를 줄였을 때의 탄소 배출량, 사료와 우유 생산량에 따른 수익, 손해, 순이익 등을 계산을 하여 그래프로 표현
+- 계산식은 아래와 같고 추후 생산량 및 사료 가격은 동적으로 입력값에 따라 바뀔 수 있게 일단은 고정 값으로 넣어두었습니다.
+
+<img src="https://user-images.githubusercontent.com/41010744/143187495-7f16dbc3-ea81-417e-a587-e5abe3d278f9.png">
+
+1. `<input>` 입력 값을 controller를 통해 페이지 get 요청 > `filter` 생성 > `CountFilter`
+2. filter를 통해 감소된 소로부터 현재 carbon, profit, cost, revenue 상태와 미래 상태를 계산하여 그래프로 표현
+3. 그래프에 나타내는 값은 `toLocaleString()` 함수를 통해 formatting 후 출력
+
+## 구현 결과 : 4번째 탭의 Green Breed Effiecieny
+
+<table>
+<tr>
+<td><img src="https://user-images.githubusercontent.com/41010744/143181831-231d1c5b-7db9-4d58-ad3f-b0b5ac4e43b3.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143182775-f6714c3a-7291-40d1-a347-1b9a80e2fa59.png"></td>
+</tr>
+</table>
+
+## 11주차 ~ 13주차 : 요구사항 기능 구현 (3)
+
+> 맡게된 페이지 시나리오 & 각 시나리오 구현 사항
+
+1. Home 페이지의 (2), (3), (4), (5)
+2. Home 페이지
+3. 2번째 Tab (Productivity Analysis - Farm Screen)의 모든 기능
+4. 2번째 Tab (Productivity Analysis - Cow Screen)의 모든 기능
+
+<table>
+<tr>
+<td><img src="https://user-images.githubusercontent.com/41010744/143188164-e850f1f3-0e84-46ef-b993-685e83dcc2c7.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143189629-2f33951f-a81c-4d5b-98f7-1ecdd913840d.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143187835-01fd1cbc-20f4-4fa9-871b-ebf911039286.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143188034-7199ab46-2044-43e0-90f0-bd023809cece.png"></td>
+</tr>
+</table>
