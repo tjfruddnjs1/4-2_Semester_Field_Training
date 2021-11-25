@@ -389,10 +389,10 @@ it’s populated via data.sql.
 
 > 맡게된 페이지 시나리오 & 각 시나리오 구현 사항
 
-1. Home 페이지의 (2), (3), (4), (5)
-2. Home 페이지
-3. 2번째 Tab (Productivity Analysis - Farm Screen)의 모든 기능
-4. 2번째 Tab (Productivity Analysis - Cow Screen)의 모든 기능
+1. Home 페이지 (2),(3),(4),(5)
+2. Home 페이지 (4)의 more cow list
+3. 2번째 Tab (Productivity Analysis-Farm Screen)
+4. 2번째 Tab (Productivity Analysis-Cow Screen)
 
 <table>
 <tr>
@@ -400,5 +400,233 @@ it’s populated via data.sql.
 <td><img src="https://user-images.githubusercontent.com/41010744/143189629-2f33951f-a81c-4d5b-98f7-1ecdd913840d.png"></td>
 <td><img src="https://user-images.githubusercontent.com/41010744/143187835-01fd1cbc-20f4-4fa9-871b-ebf911039286.png"></td>
 <td><img src="https://user-images.githubusercontent.com/41010744/143188034-7199ab46-2044-43e0-90f0-bd023809cece.png"></td>
+</tr>
+</table>
+
+1. [Home](#Home-페이지)
+2. [2번째 탭](#2번째-Tab)
+
+> 먼저 home 페이지의 대부분의 기능은 2번째 Tab에 있는 정보를 참조하고 있었기 때문에 2번째 탭을 먼저 구현했습니다.
+
+### 2번째 Tab
+
+#### Productivity Analysis-Farm Screen
+
+> (1) : (4)에서 지정 기간 중 가장 마지막 값(마지막 월, 주, 일)의 농장별 단위 젖소 우유 생산량을 계산하고 내림차순 정렬하여 내 농장 순위를 구해 상위 몇 %인지 구하기
+> (2) : (1)에서 구한 값의 범위를 지정하여 60% 미만일 때 첫번째, 60~80% 일때 두번째, 80% 초과일 때 세번째 탭 활성화
+
+- (1), (2)는 같은 query문 내에서 동작하기 때문에 하나로 묶어서 해결하였고 이를 작업하기 위해서는 (4)에서 month, week, day label을 클릭시 parameter를 통해 페이지 get 요청을 하는 컨트롤러에서의 작업이 먼저 필요했습니다.
+
+```java
+/* controller */
+public String view(@RequestParam(required = false, defaultValue = "MONTH") ViewType viewType){
+  /* logic */
+}
+```
+
+```html
+/* view */ <body th:with="ViewType=${T(com.milkt.v2.enumerate.ViewType)}>
+
+<div class="dropdown-menu">
+  <a
+    th:each="i: ${ViewType.values()}"
+    th:href="@{|/productivity?viewType=${i}|}"
+    th:text="${i.text}"
+    th:attr="data-value=${i}"
+  ></a>
+</div>
+```
+
+- 이후 querydsl에서의 (1)에서 필요한 정보를 얻기 위해 쿼리문을 작성했는데 고려해야 하는 요소는 `지정 기간`, `마지막 값`, `농장별`, `우유 생산량`, `내림 차순`, `순위` 이렇게 였습니다.
+
+> 지정 기간 기준 : month(최근 6개월), week(최근 12주), days(최근 14일) ~> 별도의 enum class로 관리
+
+1. `지정 기간, 마지막 값` : viewType을 통해 switch ~ case 문으로 builder 조건에 추가 , 마지막 값이기 때문에 각 viewtype에 따른 현재 기준 마지막 month, week, day가 같다는 조건 설정
+
+> 정보가 담겨 있는 테이블은 `A`라고 지정
+
+```java
+    switch (viewType) {
+      case MONTH:
+        builder.and(A.month.eq(now.getMonth()))
+            .and(A.year.eq(now.getYear()));
+        break;
+      case WEEK:
+        builder.and(A.year.eq(now.getYear()))
+            .and(A.week.eq(now.getWeek()));
+        break;
+      case DAY:
+        builder.and(A.year.eq(now.getYear()))
+            .and(A.day.eq(now.getDay()))
+            .and(A.month.eq(now.getMonth()));
+        break;
+    }
+```
+
+2. `농장별` : 모든 농장을 조회해야 하기 때문에 현재 `A` 테이블에 농장 정보가 담겨 있는 `B`테이블을 `Join` (조건 : A 테이블 cow의 farmId가 같은) 후 그룹화 (농장별)
+
+3. `평균 우유 생산량, 내림차순, 순위` : 평균 우유 생산량을 위해 cow table의 cow count를 필요로 했고 이를 위해 sub query 구문을 JPAExpressions을 통해 사용했습니다. 그리고 생성 DTO로 지정 기간만큼의 생산량(production)과 cow count를 parameter로 보내 DTO 내에서 평균을 구하는 생성자를 만들었습니다. 또한 DTO 내에서 Comparable을 통해 객체를 내림차순 정렬을 하였고 이를 통해 (1), (2)를 구현하였습니다.
+
+```java
+    return from(A)).where(builder)
+        .leftJoin(B).on(farm.eq(A.cow.farm))
+        .groupBy(farm)
+        .select(new QProductionAverageDTO(
+            A.present.production.sum(),
+            JPAExpressions.select(cow.count())
+                .from(cow)
+                .where(cow.farm.eq(farm)), farm.id
+        )).fetch();
+```
+
+> (3), (4) : (1)에서는 마지막 달, 주, 일을 고려했더라면 (3),(4)에서는 해당 viewtype에 따른 x축(date 정보), y축(production 합 정보)를 필요로 하였고 이를 (3), (4) 각 형식에 맞게 출력하는 작업을 필요로 했습니다.
+
+- (3) : `지정 기간`, `Today`, `내 농장 소 count`, `production sum`
+- (4) : `지정 기간`, `내 농장 production sum/내 농장 소 count`, `모든 농장 production sum/모든 농장 소 count`, `Map type의 x, y 좌표` ~> 그래프 data를 위한 (x : label, y : data)
+- (3), (4)에서의 쿼리문은 (1)과 다르지만 유사한 부분이 많아 그래프 DTO 부분에 대해서만 적어보겠습니다.
+
+```java
+/* Impl class return type */
+public Map<Integer, ProductionDTO> findGraph() { /* logic */ }
+
+/* Controller */
+Map<Integer, ProductionDTO> MyFarmGraph = A
+      .findGraph(viewType,
+            Collections.singletonList(loggedFarmId), now);
+
+Map<Integer, ProductionDTO> FarmsGraph = A
+      .findGraph(viewType, farmService.findAllFarmIds(), now);
+
+/* make graph */
+List<GraphDataDTO> myFarmGraphDataList = new ArrayList<>();
+
+MyFarmGraph.keySet().forEach(k -> {
+      myFarmGraphDataList
+          .add(new GraphDataDTO(k.intValue(),
+              (float) MyFarmGraph.get(k).getProductionSum() / myFarmCowCount));
+    });
+```
+
+1. Map type의 key 부분에 viewtype에 따른 date 정보가 들어가게 되고 value의 DTO에 그 date에 해당하는 정보를 가지고 있습니다.
+
+2. controller에서 그래프 데이터인 내농장과 모든 농장 데이터를 불러옵니다.
+
+3. 데이터를 graphDTO (x, y로 이루어진)에 맞게 재 가공하여 처리
+
+> (5), (6), (7)는 이전에 구현한 부분과 3번째 탭을 맞고 있는 사람과의 이야기 후 추가하는 형식으로 하였습니다.
+
+> (8) : (4)에서 선택한 기간에 `A` 테이블 내 평균, 누적 생산량이 가장 적은 소 5마리 출력
+
+- (8)번 부분의 경우는 `Productivity Analysis-Cow Screen`의 부분적인 구현이었기에 아래에서 통합하여 설명하겠습니다.
+
+#### Productivity Analysis-Cow Screen
+
+> 해당 부분을 구현하는데 1주일의 시간이 걸릴만큼 다양한 시도와 수정, 변경사항이 많았습니다.
+
+- 기존 (1)의 cow를 검색하는 부분은 구현되어 있었고 pagenation이 적용된 기본 구조는 정의되어 있었습니다.
+- 기본 기간 1개월을 지정하여 각 젖소의 평균 우유생산량과 예상 산유량을 출력하는 부분이었습니다.
+- 고려사항 : `1개월 내의 가장 최신 데이터`, `모든 소 리스트`, `데이터가 있는 info 테이블 내 최신 소id match`
+
+> 시도 방법
+
+1. `@Formula` 이용
+
+- `Info 테이블 정보` : 기존 테이블에 중복되는 소 id의 데이터들이 존재(소의 여러 정보(ex. 우유, 건강 상태, 무게, 탄소배출량 등))를 date에 따라 insert
+- `Cow 테이블 정보` : 모든 소들의 id가 존재
+- 따라서 info 테이블에 존재하지만 소의 가장 최신 데이터가 필요하며 info 테이블에 존재하지 않는 소들의 정보 역시 필요로 하여 테이블의 가상 컬럼인 `@Formula`를 이용하였었습니다.
+
+```java
+  /* cow domain */
+  @Formula("(SELECT d.suggest_production FROM Info d WHERE d.cow_id=id ORDER BY d.date DESC limit 1 )")
+  private Float suggestProduction;
+```
+
+- 이후 farmId를 비교, 1개월 내의 date를 where 절에 추가한 후 join 없이 query문으로 바로 사용할 수 있어 구현 과정에 있어 편함이 있었습니다. 하지만, 데이터가 점점 많아질수록 (10만 건 이상) 각 select절 내에서 select가 서브쿼리 형식으로 계속 이루어지다 보니 `페이지 로드가 느려지는 현상`이 발생했습니다.
+
+2. `left join`을 통해 직접 도출
+
+```java
+    QCowInfo cowInfo = new QCowInfo("cowInfo");
+
+    final JPQLQuery<CowAnalysisDTO> query = from(cow)
+        .where(builder)
+        .select(new QCowAnalysisDTO(
+            cow.id,
+            Info.present.production.sum(),
+            Info.date.max()))
+        .leftJoin(Info).on(cow.id.eq(Info.cow.id))
+        .leftJoin(cowInfo)
+        .on(cowInfo.date.between(now.minusMonths(1), now)
+            .and(cow.id.eq(cowInfo.cow.id)))
+        .groupBy(cow.id);
+```
+
+- 위 방법 역시 select 내에서 join으로 재정의된 테이블의 크기가 커지다보니 검색 효율이 `@Formula`를 사용하는 것보다는 빨라졌지만 큰 데이터에 대해서는 오랜 시간이 걸리게되었습니다.
+
+3. 한번의 쿼리문이 아닌 쿼리결과를 통해 필터링
+
+- 지금까지의 쿼리문은 하나의 쿼리문 결과를 return 하여 select 조건에 여러번의 검색을 통해 시간이 오래걸리게 되었는데 첫번째 결과를 통해 두번째 쿼리문에서 필터링 하는 방식을 사용하여 많은 데이터에 대해서도 시간이 오래걸리지 않게 되었습니다.
+
+> 결과 코드 (로직상 일부분)
+
+```java
+  /* info 테이블에 존재하는 모든 cow list */
+  final JPQLQuery<CowAnalysisDTO> query = from(cow)
+      .where(builder)
+      .select(new QCowAnalysisDTO(
+            cow.id,
+            Info.present.production.sum()))
+      .leftJoin(Info).on(Info.cow.eq(cow))
+      .groupBy(cow.id);
+
+    List<CowProductivityAnalysisDTO> result = getQuerydsl().applyPagination(pageable, query).fetch();
+
+    /* 위 결과로부터 cowIdList get */
+    QInfo subInfo = new QInfo("subInfo");
+    List<CowId> cowIdList = result.stream().map(r -> r.getCowId()).collect(Collectors.toList());
+
+    /* 결과로부터 새로운 query 작성 → 결과 query문의 가장 최근 date 정보 불러오기 */
+    BooleanBuilder subBuilder = new BooleanBuilder();
+    subBuilder.and(dailyCowInfo.cow.id.in(cowIdList));
+    subBuilder.and(Expressions.list(Info.cow.id.id, Info.date).in(
+        JPAExpressions
+            .select(Expressions.list(subInfo.cow.id.id, subInfo.date.max()))
+            .where(subInfo.cow.farm.id.eq(farmId))
+            .from(subInfo).groupBy(subInfo.cow)));
+
+    /* value 값 쿼리 결과를 통해 업데이트 */
+    Map<CowId, Float> valueMap = from(dailyCowInfo).where(subBuilder)
+        .transform(GroupBy.groupBy(dailyCowInfo.cow.id).as(dailyCowInfo.suggest.production));
+
+    result.forEach(r -> r.setSuggestProduction(valueMap.getOrDefault(r.getCowId(), 0f)));
+
+    /* page 반환 */
+    return new PageImpl<>(result, pageable, query.fetchCount());
+```
+
+- `Productivity Analysis-Farm Screen` 의 (8)에서 출력 결과는 `limit(5)` 과 `order by(Info.present.production.sum().desc())`의 추가로 생산량이 낮은 소 5마리를 출력했습니다.
+
+### Home 페이지 (2) (3) (4) (5)
+
+- (4)와 (4)의 see more을 제외한 (2), (3), (5)는 위의 구현되어 있는 사항과 같기 때문에 구현되어 있는 부분을 추가만 하였습니다.
+- (4)를 구현하는데 있어 다른 쿼리문이랑 다르게 필요했었던 정보는 `health` 정보가 string으로 `SAFE`, `INTEREST`, `WARNING`, `CAUTION`와 같은 형식을 되어 있어 `order by` 기준을 세우기가 애매했던 부분이 있었습니다.
+
+```java
+  @Enumerated(EnumType.ORDINAL)
+  private HealthStatus status;
+```
+
+- `@Enumerated`은 enum type을 사용하는데 있어 index나 string 형식으로 저장할 수 있도록하는 어노테이션으로 `EnumType.ORDINAL, EnumType.STRING`을 통해 설정해주어 `order by` 기준을 세울 수가 있었습니다.
+- 이외 쿼리 부분은 다른 부분과 list를 불러와 필요한 행을 `DTO`로 만들어 반환하여 view 부분에 띄웠습니다.
+
+
+### 구현 결과 : 차례대로 Home 페이지 , Home (4) see more, 2번째 탭 - farm 화면, 2번째 탭 - Cow 화면
+
+<table>
+<tr>
+<td><img src="https://user-images.githubusercontent.com/41010744/143409676-e87630d4-ba19-4f1d-a52b-53132b8c85e8.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143409602-78b71d7c-5dfd-46be-a5e2-1a2bb71263c1.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143409841-446af23c-2444-4e31-b25e-ef6f17e93a09.png"></td>
+<td><img src="https://user-images.githubusercontent.com/41010744/143409892-d4d3667f-6295-476d-920b-e9ac1cc57e17.png"></td>
 </tr>
 </table>
