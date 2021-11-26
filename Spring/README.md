@@ -587,7 +587,7 @@ MyFarmGraph.keySet().forEach(k -> {
 
     /* 결과로부터 새로운 query 작성 → 결과 query문의 가장 최근 date 정보 불러오기 */
     BooleanBuilder subBuilder = new BooleanBuilder();
-    subBuilder.and(dailyCowInfo.cow.id.in(cowIdList));
+    subBuilder.and(Info.cow.id.in(cowIdList));
     subBuilder.and(Expressions.list(Info.cow.id.id, Info.date).in(
         JPAExpressions
             .select(Expressions.list(subInfo.cow.id.id, subInfo.date.max()))
@@ -595,8 +595,8 @@ MyFarmGraph.keySet().forEach(k -> {
             .from(subInfo).groupBy(subInfo.cow)));
 
     /* value 값 쿼리 결과를 통해 업데이트 */
-    Map<CowId, Float> valueMap = from(dailyCowInfo).where(subBuilder)
-        .transform(GroupBy.groupBy(dailyCowInfo.cow.id).as(dailyCowInfo.suggest.production));
+    Map<CowId, Float> valueMap = from(Info).where(subBuilder)
+        .transform(GroupBy.groupBy(Info.cow.id).as(Info.suggest.production));
 
     result.forEach(r -> r.setSuggestProduction(valueMap.getOrDefault(r.getCowId(), 0f)));
 
@@ -618,7 +618,6 @@ MyFarmGraph.keySet().forEach(k -> {
 
 - `@Enumerated`은 enum type을 사용하는데 있어 index나 string 형식으로 저장할 수 있도록하는 어노테이션으로 `EnumType.ORDINAL, EnumType.STRING`을 통해 설정해주어 `order by` 기준을 세울 수가 있었습니다.
 - 이외 쿼리 부분은 다른 부분과 list를 불러와 필요한 행을 `DTO`로 만들어 반환하여 view 부분에 띄웠습니다.
-
 
 ### 구현 결과 : 차례대로 Home 페이지 , Home (4) see more, 2번째 탭 - farm 화면, 2번째 탭 - Cow 화면
 
