@@ -4,6 +4,7 @@
 
 1. [React](<#React(ITZ-WEB)-1주차-~-2주차>)
 2. [Spring](<#Spring(MilkTv2)-3주차-~-15주차>)
+3. [Test](<#Test-13주차>)
 
 ### React(ITZ-WEB) 1주차 ~ 2주차
 
@@ -45,3 +46,5 @@
 - Yona ITS : git commit & push 시 코드 변경 내용을 확인 및 리뷰가 가능하며 이슈 담당자를 지정해 해당 이슈를 commit 내용에서 언급 시 자동으로 mapping 해주는 편리한 협업을 위한 도구
 
 > 관련 자세한 내용은 Spring 폴더내 정리하였습니다.
+
+### Test 13주차

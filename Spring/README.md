@@ -1,4 +1,4 @@
-# Spring(MilkTv2)
+# Spring(MilkTv2 Project)
 
 ## 3주차 : 스프링 개발 환경 세팅 및 폴더 구조화, application-local.yml
 
@@ -629,3 +629,58 @@ MyFarmGraph.keySet().forEach(k -> {
 <td><img src="https://user-images.githubusercontent.com/41010744/143409892-d4d3667f-6295-476d-920b-e9ac1cc57e17.png"></td>
 </tr>
 </table>
+
+# Spring(iPlus Project)
+
+## 14주차 : 프로젝트 구조화 및 기능 구현
+
+> 기존 진행하던 프로젝트를 마무리하고 iPlus라는 새로운 프로젝트를 시작하게 되었습니다. 해당 프로젝트에서는 이전 프로젝트와 다르게 데이터가 실시간으로 들어오는 것이 아닌 사용자를 관리하는 admin service project이였기 때문에 query 영역보다 controller와 service 영역에서의 작업이 많았습니다.
+
+- 관리 측면에서 여러 분류의 tab이 존재했지만 통일된 게시판 CRUD 형식이었기 때문에 게시판에 들어가 있는 페이지 기능을 바탕으로 나열하고 구현하는데 있어 이전 프로젝트에서와 다른 새로운 부분만 설명하겠습니다.
+
+1. 페이징(PageImpl<>), 검색(filter), 게시물 삭제(checkbox를 통한)
+
+- 이전 진행했던 프로젝트에서도 같은 기능을 구현했던 경험이 있어 설명은 생략하겠습니다.
+
+2. 게시물 생성 (중복 확인 & Validation)
+
+- 이번 프로젝트에서 가장 많이 시간을 사용했던 부분이 해당 영역입니다. 기존 프로젝트들과는 다르게 사용자의 입력을 여러 형태로 받기 때문에 그에 관한 유효성 처리를 해야할 부분이 여러부분 있었습니다.
+
+> 중복 확인 (ajax 요청 + ResponseEntity)
+
+- ajax 요청 : 요청을 controller 영역으로 보내고 성공시, 실패시 메시지를 사용자에게 알림
+
+```js
+$.ajax({
+      url: /*[[ @{/user/usernameCheck} ]]*/,
+      type: 'get',
+      data: {username: $Input.val()}
+    }).done(function (res) {
+      showUsernameMessage(false, res.message);
+      isCheckedUsername = true;
+    }).fail(function (res) {
+      showUsernameMessage(true, res.responseJSON.message ? res.responseJSON.message : '사용할 수 없는 ID 입니다. 다시 시도해주세요.');
+      isCheckedUsername = false;
+    });
+```
+
+- ResponseEntity 부분
+
+```java
+  @GetMapping(value = "/usernameCheck")
+  @ResponseBody
+  public ResponseEntity check(@RequestParam("username") String username) {
+    Optional<UserInfo> userOptional = userService.findByUsername(username);
+
+    if (userOptional.isPresent()) {
+      return ResponseEntity.badRequest()
+          .body(ApiMessage.builder().message("사용중인 ID 입니다").build());
+    }
+
+    return ResponseEntity.ok().body(ApiMessage.builder().message("사용가능한 ID 입니다").build());
+  }
+```
+
+> Validation (@Valid , SmartValidator + BindingResult)
+
+- Domain에 걸어 두었던 제약사항(ex. Pattern, Size, notBlank 등)을 Validate하여 result에 error를 넣어 error 발생시 사용자에게 알려주는 방식으로 처음에는 @Valid와 thymeleaf error 필드를 사용하여 message를 출력하다가 validation을 controller영역에서 어떤 작업을 마친후에 해야할 부분이 있어 시기를 제어할 수 있는 SmartValidator를 사용하였습니다.
